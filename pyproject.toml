@@ -8,6 +8,9 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 pre-commit = "^3.6.0"
+pandas = "^2.2.0"
+scikit-learn = "^1.4.0"
+ipykernel = "^6.29.0"
 
 
 [build-system]
