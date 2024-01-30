@@ -1,4 +1,11 @@
-"""Mlflow 환경에서 xgboost 기반 experiment tracking을 수행합니다."""
+"""Mlflow 환경에서 xgboost 기반 experiment tracking을 수행합니다.
+
+다음 코드로 사용할 수 있습니다.
+from sklearn.datasets import load_breast_cancer
+X, y = load_breast_cancer(as_frame=True, return_X_y=True)
+tuner = XgboostTuner()
+tuner.tune_model(X, y)
+"""
 # %%
 import datetime
 
