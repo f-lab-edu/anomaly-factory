@@ -1,6 +1,7 @@
 """Mlflow 환경에서 xgboost 기반 experiment tracking을 수행합니다.
 
 다음 코드로 사용할 수 있습니다.
+# 명령 프롬프트에 mlflow ui를 입력해, 서버가 가동중이어야 합니다.
 from sklearn.datasets import load_breast_cancer
 X, y = load_breast_cancer(as_frame=True, return_X_y=True)
 tuner = XgboostTuner()
@@ -15,7 +16,7 @@ import mlflow
 import optuna
 import pandas as pd
 import xgboost as xgb
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import root_mean_squared_error
 from sklearn.model_selection import train_test_split
 
 optuna.logging.set_verbosity(optuna.logging.ERROR)
@@ -142,7 +143,7 @@ class XgboostTuner:
             }
             model = xgb.XGBRegressor(**params)
             model.fit(self.train_x, self.train_y)
-            error = mean_squared_error(self.valid_y, model.predict(self.valid_x), squared=False)
+            error = root_mean_squared_error(self.valid_y, model.predict(self.valid_x))
             mlflow.log_params(params)
             mlflow.log_metric("rmse", error)
 
