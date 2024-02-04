@@ -1,35 +1,57 @@
-"""
-FastAPI을 활용하여 scikit-learn 모델을 배포합니다. 
-"""
+"""FastAPI을 활용하여 scikit-learn 모델을 배포합니다."""
 
 # %%
 from fastapi import FastAPI
 from joblib import load
 from pydantic import BaseModel
 
-model = load('iris_classification_model.joblib')
+model = load("iris_classification_model.joblib")
 
 
-def get_prediction(param1, param2, param3, param4):
-    x = [[param1, param2, param3, param4]]
+def get_prediction(sepal_length, sepal_width, petal_length, petal_width) -> dict:
+    """FastAPI로 입력받은 인자에 대한 예측 결과를 반환합니다.
+
+    Args:
+        sepal_length (float): 꽃받침 길이입니다.
+        sepal_width (float): 꽃받침 너비입니다.
+        petal_length (float): 꽃잎 길이입니다.
+        petal_width (float): 꽃잎 너비입니다.
+
+    Returns:
+        dict: 예측 클래스 및 확률을 포함하는 딕셔너리입니다.
+
+    """
+    x = [[sepal_length, sepal_width, petal_length, petal_width]]
 
     y = model.predict(x)
     prob = model.predict_proba(x)[0].tolist()
 
-    return {'prediction': int(y), 'probability': prob}
+    return {"prediction": int(y), "probability": prob}
 
 
 app = FastAPI()
 
 
 class IrisModel(BaseModel):
-    param1: float
-    param2: float
-    param3: float
-    param4: float
+    """FastAPI에 사용하는, iris data의 타입을 명시한 pydantic 클래스입니다."""
+
+    sepal_length: float
+    sepal_width: float
+    petal_length: float
+    petal_width: float
 
 
 # uvicorn main:app --reload
-@app.post('/predict')
-async def predict(params: IrisModel):
-    return get_prediction(params.param1, params.param2, params.param3, params.param4)
+# http://127.0.0.1:8000/docs
+@app.post("/predict")
+async def predict(data: IrisModel) -> dict:
+    """사용자의 iris data 입력에 대한 예측 결과를 반환합니다.
+
+    Args:
+        data (IrisModel): iris data의 타입을 명시한 pydantic 클래스입니다.
+
+    Returns:
+        dict: 예측 클래스 및 확률을 포함하는 딕셔너리입니다.
+
+    """
+    return get_prediction(data.sepal_length, data.sepal_width, data.petal_length, data.petal_width)
