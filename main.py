@@ -5,7 +5,9 @@ from fastapi import FastAPI
 from joblib import load
 from pydantic import BaseModel
 
-model = load("iris_classification_model.joblib")
+import config
+
+model = load(config.path["sklearn_model"])
 
 
 def get_prediction(sepal_length, sepal_width, petal_length, petal_width) -> dict:
