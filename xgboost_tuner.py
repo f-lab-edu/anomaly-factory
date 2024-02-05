@@ -9,7 +9,7 @@ tuner.tune_model(X, y)
 """
 
 # %%
-import datetime
+import uuid
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -80,9 +80,12 @@ class XgboostTuner:
 
     def experiment_xgboost_model(self):
         """준비된 데이터를 기반으로, Xgboost 하이퍼파라미터 튜닝을 진행하고 아티팩트를 저장합니다."""
-        with mlflow.start_run(
-            experiment_id=self.experiment_id, run_name=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"), nested=True
-        ):
+        # 고유한 run_name을 생성합니다.
+        unique_run_name = str(uuid.uuid4())
+        while len(mlflow.search_runs(experiment_names=[unique_run_name])):
+            unique_run_name = str(uuid.uuid4())
+
+        with mlflow.start_run(experiment_id=self.experiment_id, run_name=unique_run_name, nested=True):
             study = optuna.create_study(direction="minimize")
             study.optimize(
                 self.objective,
