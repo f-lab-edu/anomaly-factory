@@ -7,6 +7,7 @@ X, y = load_breast_cancer(as_frame=True, return_X_y=True)
 tuner = XgboostTuner()
 tuner.tune_model(X, y)
 """
+
 # %%
 import datetime
 
@@ -19,6 +20,8 @@ import xgboost as xgb
 from sklearn.metrics import root_mean_squared_error
 from sklearn.model_selection import train_test_split
 
+import config
+
 optuna.logging.set_verbosity(optuna.logging.ERROR)
 
 
@@ -26,28 +29,16 @@ optuna.logging.set_verbosity(optuna.logging.ERROR)
 class XgboostTuner:
     """Xgboost 모델 기반의 Experiment를 수행하여 하이퍼파라미터 튜닝, 검증, 모델 저장을 수행하는 클래스입니다."""
 
-    def __init__(
-        self,
-        tracking_uri: str = "http://localhost:5000",
-        experiment_name: str = "XGBoostExperiment",
-        n_trials: int = 100,
-        split_ratio: float = 0.25,
-    ):
+    def __init__(self, experiment_name: str = "XGBoostExperiment"):
         """Mlflow Experiment를 수행하기 위한 초기값을 설정합니다.
 
         Args:
-            tracking_uri (str, optional): Mlflow 서버 주소입니다. 기본값은 "http://localhost:5000"입니다.
             experiment_name (str, optional): Experiment 이름입니다. 기본값은 "XGBoostExperiment"입니다.
-            n_trials (int, optional): Optuna에서 수행할 최적화 횟수입니다. 기본값은 100입니다.
-            split_ratio (float, optional): 검증용 데이터의 비율입니다. 기본값은 0.25입니다.
 
         """
-        mlflow.set_tracking_uri(tracking_uri)
+        mlflow.set_tracking_uri(config.mlflow["tracking_uri"])
         self.experiment_id = self.get_or_create_experiment(experiment_name)
         mlflow.set_experiment(experiment_id=self.experiment_id)
-
-        self.n_trials = n_trials
-        self.split_ratio = split_ratio
 
     def get_or_create_experiment(self, experiment_name: str) -> str:
         """Mlflow experiment의 ID를 반환합니다. 없다면 새로 생성합니다.
@@ -83,40 +74,37 @@ class XgboostTuner:
             y (pd.Series): 예측하고자 하는 데이터의 배열입니다.
 
         """
-        self.train_x, self.valid_x, self.train_y, self.valid_y = train_test_split(X, y, test_size=self.split_ratio)
+        self.train_x, self.valid_x, self.train_y, self.valid_y = train_test_split(
+            X, y, test_size=config.mlflow["split_ratio"]
+        )
 
-    def experiment_xgboost_model(
-        self,
-        run_name: str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-        plot_name: str = "feature_importances.png",
-        artifact_path: str = "model",
-        model_format: str = "ubj",
-    ):
-        """준비된 데이터를 기반으로, Xgboost 하이퍼파라미터 튜닝을 진행하고 아티팩트를 저장합니다.
-
-        Args:
-            run_name (str, optional): 진행할 단위 Experiment의 이름입니다. 기본값은 현재 시간에 대한 연월일_시분초입니다.
-            plot_name (str, optional): 아티팩트의 파일 이름입니다. 기본값은 "feature_importances.png"입니다.
-            artifact_path (str, optional): 아티팩트를 저장할 경로입니다. 기본값은 "model"입니다.
-            model_format (str, optional): 저장할 Xgboost 모델의 포맷입니다. 기본값은 "ubj"입니다.
-
-        """
-        with mlflow.start_run(experiment_id=self.experiment_id, run_name=run_name, nested=True):
+    def experiment_xgboost_model(self):
+        """준비된 데이터를 기반으로, Xgboost 하이퍼파라미터 튜닝을 진행하고 아티팩트를 저장합니다."""
+        with mlflow.start_run(
+            experiment_id=self.experiment_id, run_name=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"), nested=True
+        ):
             study = optuna.create_study(direction="minimize")
-            study.optimize(self.objective, n_trials=self.n_trials, callbacks=[self.model_callback])
+            study.optimize(
+                self.objective,
+                n_trials=config.mlflow["n_trials"],
+                callbacks=[self.model_callback],
+            )
             model = xgb.XGBRegressor(**study.best_params)
             model.fit(self.train_x, self.train_y)
             mlflow.log_params(study.best_params)
             mlflow.log_metric("best_rmse", study.best_value)
-            mlflow.log_figure(figure=self.plot_feature_importance(model), artifact_file=plot_name)
+            mlflow.log_figure(
+                figure=self.plot_feature_importance(model),
+                artifact_file=config.mlflow["plot_name"],
+            )
             mlflow.xgboost.log_model(
                 xgb_model=model,
-                artifact_path=artifact_path,
+                artifact_path=config.mlflow["artifact_path"],
                 input_example=self.train_x.iloc[[0]],
-                model_format=model_format,
+                model_format=config.mlflow["model_format"],
             )
 
-            model_uri = mlflow.get_artifact_uri(artifact_path)
+            model_uri = mlflow.get_artifact_uri(config.mlflow["artifact_path"])
 
         mlflow.xgboost.load_model(model_uri)
 
