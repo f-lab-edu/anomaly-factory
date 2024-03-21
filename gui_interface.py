@@ -14,17 +14,13 @@ from experiment_tracking.datamodule import DataModule
 from experiment_tracking.optimizing_tracker import XGBRegressorOptimizingTracker
 from experiment_tracking.tuning_experiment import TuningExperiment
 
-if "stage" not in st.session_state:
+not_initailized = "stage" not in st.session_state
+if not_initailized:
     st.session_state.stage = 0
-if "data" not in st.session_state:
     st.session_state.data = "iris"
-if "df" not in st.session_state:
     st.session_state.df = ""
-if "target" not in st.session_state:
     st.session_state.target = "petal width"
-if "model" not in st.session_state:
     st.session_state.model = "xgboost.XGBRegressor"
-if "tuning_done" not in st.session_state:
     st.session_state.tuning_done = False
 
 
