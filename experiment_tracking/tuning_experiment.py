@@ -15,10 +15,10 @@ tuner.tune_model()
 import json
 import uuid
 
-import config
 import mlflow
 import optuna
 
+import config
 from experiment_tracking.datamodule import DataModule
 from experiment_tracking.optimizing_tracker import OptimizingTracker
 
