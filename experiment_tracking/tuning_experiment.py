@@ -12,6 +12,7 @@ tuner.tune_model()
 """
 
 # %%
+import json
 import uuid
 
 import mlflow
@@ -112,6 +113,17 @@ class TuningExperiment:
             frozen_trial (optuna.trial.FrozenTrial): optuna.trial.Trial 객체의 상태와 결과값입니다. 콜백의 인자로, optimize 함수에서 제공됩니다.
 
         """
+        data = frozen_trial.params
+        data["number"] = frozen_trial.number
+        data["values"] = frozen_trial.values
+        data["distributions"] = {}
+        for param_name, distribution in frozen_trial.distributions.items():
+            data["distributions"][param_name] = optuna.distributions.distribution_to_json(distribution)
+
+        with open("output.json", "w") as f:
+            json.dump(data, f, indent=4)
+        with open("output_best.json", "w") as f:
+            json.dump(study.best_params, f, indent=4)
         best = study.user_attrs.get("best", None)
         if study.best_value and best != study.best_value:
             study.set_user_attr("best", study.best_value)
