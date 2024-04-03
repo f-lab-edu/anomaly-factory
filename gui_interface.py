@@ -2,18 +2,19 @@
 
 # %%
 import json
-import time
-from pathlib import Path
+import uuid
 from threading import Thread
 
+import redis
 import streamlit as st
 from sklearn.datasets import load_diabetes, load_iris
 
-import config
 from experiment_tracking.datamodule import DataModule
 from experiment_tracking.optimizing_tracker import XGBRegressorOptimizingTracker
 from experiment_tracking.tuning_experiment import TuningExperiment
 
+redis_client = redis.Redis(decode_responses=True)
+pubsub = redis_client.pubsub(ignore_subscribe_messages=True)
 not_initailized = "stage" not in st.session_state
 if not_initailized:
     st.session_state.stage = 0
@@ -22,6 +23,7 @@ if not_initailized:
     st.session_state.target = "petal width"
     st.session_state.model = "xgboost.XGBRegressor"
     st.session_state.tuning_done = False
+    st.session_state.uuid = str(uuid.uuid4())
 
 
 def select_data():
@@ -55,7 +57,7 @@ def start_experiment():
     dm = DataModule(
         st.session_state.df.drop(columns=st.session_state.target), st.session_state.df[st.session_state.target]
     )
-    tuner = TuningExperiment("model_run", XGBRegressorOptimizingTracker(), dm)
+    tuner = TuningExperiment(st.session_state.uuid, XGBRegressorOptimizingTracker(), dm)
     th = Thread(target=tuner.tune_model)
     th.start()
 
@@ -90,6 +92,23 @@ def move_component():
     st.markdown(align_button_to_undermost, unsafe_allow_html=True)
 
 
+def subscribe(channel, placeholder):
+    """Redis 채널을 구독하여 데이터를 받아 streamlit 객체에 출력합니다.
+
+    Args:
+        channel (str): 구독할 채널입니다.
+        placeholder (object): 데이터가 표현될 streamlit 객체입니다.
+
+    """
+    pubsub.subscribe(channel)
+    for message in pubsub.listen():
+        data = json.loads(message["data"])
+        if data == "stop":
+            break
+        else:
+            placeholder.write(data)
+
+
 # AI 컴포넌트
 if st.session_state.stage == 0:
     select_data()
@@ -99,17 +118,5 @@ elif st.session_state.stage == 2:
     select_model()
 elif st.session_state.stage == 3:
     start_experiment()
-
-    placeholder = st.empty()
-
-    while True:
-        time.sleep(0.2)
-        if Path("output.json").exists():
-            with open("output.json", "r") as f:
-                data = json.load(f)
-                data.pop("distributions", None)
-            placeholder.write(data)
-            if data["number"] == config.mlflow["n_trials"] - 1:
-                break
-
+    subscribe(st.session_state.uuid, placeholder := st.empty())
 move_component()
