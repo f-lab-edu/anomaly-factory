@@ -13,16 +13,17 @@ tuner.tune_model()
 
 # %%
 import json
-import uuid
 
 import mlflow
 import optuna
+import redis
 
 import config
 from experiment_tracking.datamodule import DataModule
 from experiment_tracking.optimizing_tracker import OptimizingTracker
 
 optuna.logging.set_verbosity(optuna.logging.ERROR)
+redis_client = redis.Redis(decode_responses=True)
 
 
 # %%
@@ -40,20 +41,18 @@ class TuningExperiment:
         """
         self.tracker = tracker
         self.dm = dm
-        self.experiment_id = self.setup_experiment(experiment_name)
+        self.experiment_name = experiment_name
+        self.experiment_id = self.setup_experiment()
 
-    def setup_experiment(self, experiment_name: str) -> str:
+    def setup_experiment(self) -> str:
         """실행 중인 서버에 새로운 experiment를 등록합니다.
-
-        Args:
-            experiment_name (str): 사용자로부터 입력받은 experiment 이름입니다.
 
         Returns:
             str: experiment 이름에 대응하는 id입니다.
 
         """
         mlflow.set_tracking_uri(config.mlflow["tracking_uri"])
-        experiment_id = self.get_or_create_experiment(experiment_name)
+        experiment_id = self.get_or_create_experiment(self.experiment_name)
         mlflow.set_experiment(experiment_id=experiment_id)
         return experiment_id
 
@@ -75,13 +74,12 @@ class TuningExperiment:
     def tune_model(self):
         """최적의 하이퍼파라미터를 찾습니다."""
         # 고유한 run_name을 생성합니다.
-        unique_run_name = str(uuid.uuid4())
 
-        with mlflow.start_run(experiment_id=self.experiment_id, run_name=unique_run_name, nested=True):
-            study = optuna.create_study(direction="minimize")
-            study.optimize(self.objective, n_trials=config.mlflow["n_trials"], callbacks=[self.model_callback])
-            model = self.tracker.model(**study.best_params)
-            model.fit(self.dm.X_train, self.dm.y_train)
+        study = optuna.create_study(direction="minimize")
+        study.optimize(self.objective, n_trials=config.mlflow["n_trials"], callbacks=[self.model_callback])
+        model = self.tracker.model(**study.best_params)
+        model.fit(self.dm.X_train, self.dm.y_train)
+        with mlflow.start_run(experiment_id=self.experiment_id, nested=True):
             self.tracker.log(
                 params=study.best_params, metric_name=self.tracker.best_metric_name, value=study.best_value
             )
@@ -119,11 +117,7 @@ class TuningExperiment:
         data["distributions"] = {}
         for param_name, distribution in frozen_trial.distributions.items():
             data["distributions"][param_name] = optuna.distributions.distribution_to_json(distribution)
-
-        with open("output.json", "w") as f:
-            json.dump(data, f, indent=4)
-        with open("output_best.json", "w") as f:
-            json.dump(study.best_params, f, indent=4)
+        redis_client.publish(self.experiment_name, json.dumps(data))
         best = study.user_attrs.get("best", None)
         if study.best_value and best != study.best_value:
             study.set_user_attr("best", study.best_value)
