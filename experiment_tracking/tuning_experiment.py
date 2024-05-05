@@ -18,9 +18,9 @@ import mlflow
 import optuna
 import redis
 
-import config
 from experiment_tracking.datamodule import DataModule
 from experiment_tracking.optimizing_tracker import OptimizingTracker
+from settings import settings
 
 optuna.logging.set_verbosity(optuna.logging.ERROR)
 redis_client = redis.Redis(decode_responses=True)
@@ -51,7 +51,7 @@ class TuningExperiment:
             str: experiment 이름에 대응하는 id입니다.
 
         """
-        mlflow.set_tracking_uri(config.mlflow["tracking_uri"])
+        mlflow.set_tracking_uri(settings.tracking_uri)
         experiment_id = self.get_or_create_experiment(self.experiment_name)
         mlflow.set_experiment(experiment_id=experiment_id)
         return experiment_id
@@ -76,7 +76,7 @@ class TuningExperiment:
         # 고유한 run_name을 생성합니다.
 
         study = optuna.create_study(direction="minimize")
-        study.optimize(self.objective, n_trials=config.mlflow["n_trials"], callbacks=[self.model_callback])
+        study.optimize(self.objective, n_trials=settings.n_trials, callbacks=[self.model_callback])
         model = self.tracker.model(**study.best_params)
         model.fit(self.dm.X_train, self.dm.y_train)
         with mlflow.start_run(experiment_id=self.experiment_id, nested=True):
@@ -84,7 +84,7 @@ class TuningExperiment:
                 params=study.best_params, metric_name=self.tracker.best_metric_name, value=study.best_value
             )
             self.tracker.mlflow_module.log_model(
-                model, artifact_path=config.mlflow["artifact_path"], input_example=self.dm.X_train.iloc[[0]]
+                model, artifact_path=settings.artifact_path, input_example=self.dm.X_train.iloc[[0]]
             )
 
     def objective(self, trial: optuna.trial.Trial) -> None:

@@ -12,3 +12,6 @@ class Settings(BaseSettings):
     model_format: str = "ubj"
     n_trials: int = 100
     train_size: float = 0.8
+
+
+settings = Settings()
